@@ -3,16 +3,21 @@ package data
 import (
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"time"
+
+	"crypto/tls"
 
 	"github.com/joho/godotenv"
 	"github.com/stewie1520/pm/constants"
 	"github.com/stewie1520/pm/data/model"
-	"gopkg.in/mgo.v2"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
-var session *mgo.Session
+var client mongo.
 
 func init() {
 	err := godotenv.Load(".env")
@@ -20,19 +25,11 @@ func init() {
 		log.Fatal(err)
 	}
 
-	// session, err = mgo.Dial(os.Getenv("DB_CONNECTION"))
-	session, err = mgo.DialWithInfo(&mgo.DialInfo{
-		Addrs:    []string{os.Getenv("DB_ADDRS")},
-		Database: os.Getenv("DB_NAME"),
-		Username: os.Getenv("DB_USER"),
-		Password: os.Getenv("DB_PW"),
-	})
+	mongoUri := os.Getenv("DB_CONNECTION")
 
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println("Connected")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client, err = mongo.Connect(ctx, options.Client().ApplyURI(mongoUri))
 }
 
 // GetLastLogin return the most recent time user login
