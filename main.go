@@ -2,15 +2,21 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"os"
-	"time"
-
+	"github.com/joho/godotenv"
 	"github.com/stewie1520/pm/data"
 	"github.com/stewie1520/pm/helpers"
 	"github.com/urfave/cli/v2"
 	_ "gopkg.in/mgo.v2"
+	"log"
+	"os"
 )
+
+func init() {
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatal(err)
+	}
+}
 
 func main() {
 	app := &cli.App{
@@ -32,8 +38,6 @@ func main() {
 		},
 	}
 
-	fmt.Println("Fixed")
-
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Fatal(err)
@@ -41,29 +45,24 @@ func main() {
 }
 
 func requireForMasterPassword(c *cli.Context) error {
-	lastLoginTime, err := data.GetLastLogin()
-	if err != nil {
-		return err
-	}
-
-	if time.Now().Sub(*lastLoginTime) <= 15*time.Minute {
+	require := helpers.RequireForMasterPassword()
+	if !require {
 		return nil
 	}
 
-	password, err := helpers.PromptForPassword("Please enter your master key to continue")
+	password, err := helpers.PromptForPassword("Please enter your master key to continue\n")
 	if err != nil {
 		return err
 	}
 
 	if !data.CheckMasterKey(password) {
-		return fmt.Errorf("Master key is incorrect")
+		return fmt.Errorf("master key is incorrect")
 	}
 
 	return nil
 }
 
 func newPassword(c *cli.Context) error {
-
 	siteName := c.String("site")
 	fmt.Println(siteName)
 	return nil

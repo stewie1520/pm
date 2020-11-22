@@ -2,53 +2,62 @@ package data
 
 import (
 	"fmt"
-	"log"
-	"net"
 	"os"
 	"time"
 
-	"crypto/tls"
-
-	"github.com/joho/godotenv"
-	"github.com/stewie1520/pm/constants"
-	"github.com/stewie1520/pm/data/model"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"database/sql"
+	_ "github.com/lib/pq"
+	"github.com/stewie1520/pm/data/postgres"
 )
 
-var client mongo.
-
-func init() {
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	mongoUri := os.Getenv("DB_CONNECTION")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	client, err = mongo.Connect(ctx, options.Client().ApplyURI(mongoUri))
+type Context struct {
+	 activities *postgres.ActivityModel
 }
 
-// GetLastLogin return the most recent time user login
-func GetLastLogin() (*time.Time, error) {
-	var lastLoginAtv *model.Activity
+func getDb() (*sql.DB, error) {
+	connInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD"), os.Getenv("DB_NAME"))
 
-	Activities := session.DB(os.Getenv("DB_NAME")).C("activities")
-
-	err := Activities.Find(struct {
-		Action string
-	}{
-		Action: constants.ActionLogin,
-	}).One(lastLoginAtv)
+	db, err := sql.Open("postgres", connInfo)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &lastLoginAtv.Time, nil
+	err = db.Ping()
+	if err != nil {
+		return nil, err
+	}
+
+	return db, nil
+}
+
+func getContext() (*Context, error) {
+	db, err := getDb()
+	if err != nil {
+		return nil, err
+	}
+	return &Context{ activities: &postgres.ActivityModel{DB: db} }, nil
+}
+
+
+// GetLastLogin return the most recent time user login
+func GetLastActivityTime() *time.Time {
+	// default value of now is 20 minutes ago
+	now := time.Now().Add(-20*time.Minute)
+
+	ctx, err := getContext()
+	if err != nil {
+		return &now
+	}
+
+	actv := ctx.activities.Latest()
+
+	if actv == nil {
+		return &now
+	}
+
+	return &actv.Time
 }
 
 // CheckMasterKey check if password is correct
